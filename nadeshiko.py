@@ -1,7 +1,7 @@
 import discord
 import random
 
-TOKEN = 'MTM5NTIyNDM4NjA3NTc1ODYwMg.GxTuri.7R4fgJT5z5l3_8CpbMoRYfXW-ts4LCOXdd6oHc'  # 👉 Coloca aquí el token de tu bot
+TOKEN = 'NOMBRE'  # 👉 Coloca aquí el token de tu bot
 
 intents = discord.Intents.default()
 intents.messages = True
