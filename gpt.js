@@ -17,7 +17,7 @@ const getActividad = async () => {
 ** Otras actividades **: Nombre de la actividad`}
     ];
 
-    const completion = await openai.chatt.completions.create({
+    const completion = await openai.chat.completions.create({
         messages,
         model: 'gpt-4'
     });
@@ -25,5 +25,6 @@ const getActividad = async () => {
     return completion.choices[0].message.content;
 
 }
+
 
 module.exports = { getActividad };
