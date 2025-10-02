@@ -1,31 +1,48 @@
-const { Client, Events, GatewayIntentBits, SlashCommandBuilder } = require('discord.js');
-const { getActividad } = require('./gpt');
+// gpt.js
+const OpenAI = require('openai');
 
-const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
-});
+const getActividad = async () => {
+    try {
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
 
-client.on(Events.ClientReady, c => {
-    console.log('Bot conectado');
+        const messages = [
+            { role: 'system', content: 'Eres un asistente que sugiere actividades.' },
+            { 
+                role: 'user', 
+                content: `Quiero realizar una actividad que sea relajante y dinámica a la vez. 
+La respuesta debe seguir esta estructura:
 
-    c.user.setActivity('Actividades para realizar');
+** Jugar online **: Nombre de la actividad  
+** Salir a pasear **: Nombre de la actividad  
+** Salir a acampar **: Nombre de la actividad  
+** Caminar un rato **: Nombre de la actividad  
+** Hacer deportes **: Nombre de la actividad  
+** Otras actividades **: Nombre de la actividad`
+            }
+        ];
 
-    const actividadesCommand = new SlashCommandBuilder()
-        .setName('actividad')
-        .setDescription('Proporciona una actividad para realizar');
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages
+        });
 
-    c.application.commands.create(actividadesCommand);
-});
+        return completion.choices[0].message.content;
 
-client.on(Events.InteractionCreate, async interaction => {
-    if(!interaction.isChatInputCommand()) return;
+    } catch (error) {
+        // Si no hay crédito o hay error, devolvemos lista fija
+        if (error.status === 429) {
+            return `** Jugar online **: Among Us  
+** Salir a pasear **: Parque cercano  
+** Salir a acampar **: Reserva natural  
+** Caminar un rato **: Ruta de 30 min  
+** Hacer deportes **: Básquet  
+** Otras actividades **: Leer un libro al aire libre`;
+        }
 
-    if(interaction.commandName === 'actividad') {
-        await interaction.deferReply();
-        const actividad = await getActividad();
-        await interaction.editReply(actividad);
+        return 'Ocurrió un error al generar la actividad.';
     }
-});
+};
 
-
-client.login(process.env.DISCORD_TOKEN)
+module.exports = { getActividad };
