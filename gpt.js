@@ -1,89 +1,77 @@
-const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
-const { getActividad } = require('./gpt');
-require('dotenv').config();
+// gpt.js
 const OpenAI = require('openai');
 
-const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
-});
+function getClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    const msg = 'La variable de entorno OPENAI_API_KEY no está definida. ' +
+                'Ponla en tu .env o en las variables de entorno del sistema.';
+    console.error(msg);
+    throw new Error(msg);
+  }
+  return new OpenAI({ apiKey });
+}
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+const getActividad = async () => {
+  try {
+    const client = getClient();
 
-// Registro del comando /actividad
-client.once('ready', async () => {
-    console.log(`Bot iniciado como ${client.user.tag}`);
+    const messages = [
+      { role: 'system', content: 'Eres un asistente que sugiere actividades.' },
+      {
+        role: 'user',
+        content: `Quiero realizar una actividad que sea relajante y dinámica a la vez. 
+La respuesta debe seguir esta estructura:
 
-    const commands = [
-        {
-            name: 'actividad',
-            description: 'Sugiere actividades relajantes y dinámicas'
-        }
+** Jugar online **: Nombre de la actividad  
+** Salir a pasear **: Nombre de la actividad  
+** Salir a acampar **: Nombre de la actividad  
+** Caminar un rato **: Nombre de la actividad  
+** Hacer deportes **: Nombre de la actividad  
+** Otras actividades **: Nombre de la actividad`
+      }
     ];
 
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages
+    });
 
-    try {
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands }
-        );
-        console.log('Comando /actividad registrado');
-    } catch (error) {
-        console.error(error);
+    return completion.choices[0].message.content;
+  } catch (error) {
+    if (error?.status === 429) {
+      return `** Jugar online **: Among Us  
+** Salir a pasear **: Parque cercano  
+** Salir a acampar **: Reserva natural  
+** Caminar un rato **: Ruta de 30 min  
+** Hacer deportes **: Básquet  
+** Otras actividades **: Leer un libro al aire libre`;
     }
-});
+    console.error('Error en getActividad:', error);
+    return 'Ocurrió un error al generar la actividad.';
+  }
+};
 
-// Slash command /actividad
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
+const askOpenAI = async (history) => {
+  try {
+    const client = getClient();
+    const messages = history.map(m => ({ role: m.role, content: m.content }));
 
-    if (interaction.commandName === 'actividad') {
-        await interaction.deferReply();
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages
+    });
 
-        const respuesta = await getActividad();
+    return completion.choices[0].message.content;
+  } catch (error) {
+    console.error('Error en askOpenAI:', error);
+    throw error;
+  }
+};
 
-        const embed = new EmbedBuilder()
-            .setColor(0x00AE86)
-            .setTitle('Actividades sugeridas')
-            .setDescription(respuesta)
-            .setFooter({ text: 'Bot IA Nadeshiko', iconURL: client.user.displayAvatarURL() })
-            .setTimestamp();
+module.exports = { getActividad, askOpenAI };
 
-        await interaction.editReply({ embeds: [embed] });
-    }
-});
-
-// Chat normal con personalidad (Nadeshiko)
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return; // no responderse a sí mismo
-
-    // Si lo mencionan directamente
-    if (message.mentions.has(client.user)) {
-        try {
-            const completion = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
-                messages: [
-                    { role: "system", content: "Eres Nadeshiko Kagamihara de Yuru Camp, una chica alegre, tierna y un poco despistada. Habla como ella y responde con cariño." },
-                    { role: "user", content: message.content }
-                ]
-            });
-
-            const respuesta = completion.choices[0].message.content;
-
-            await message.reply(respuesta);
-        } catch (error) {
-            console.error("Error en OpenAI:", error);
-            await message.reply("Lo siento, estoy un poco cansada y no puedo responder ahora 😴");
-        }
-    }
-
-    // Si dicen "hola", que salude automáticamente
-    if (/hola/i.test(message.content)) {
-        await message.reply("¡Holaaa! Soy Nadeshiko, ¿cómo estás?");
-    }
-});
 
 client.login(process.env.DISCORD_TOKEN);
+
 
