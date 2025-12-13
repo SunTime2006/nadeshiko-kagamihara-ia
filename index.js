@@ -1,6 +1,8 @@
-require('dotenv').config(); 
+require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
 const { getActividad, askOpenAI } = require('./gpt');
+
+const recentlyReplied = new Set();
 
 const client = new Client({
   intents: [
@@ -10,11 +12,6 @@ const client = new Client({
   ]
 });
 
-/**
- * Conversational memory:
- * Map key = conversation id (channel id)
- * value = array de { role: 'user'|'assistant'|'system', content }
- */
 const conversationMemory = new Map();
 const HISTORY_LIMIT = 10;
 
@@ -58,9 +55,6 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-/**
- * Helper para gestionar el historial por canal.
- */
 function pushToMemory(convId, role, content) {
   if (!conversationMemory.has(convId)) conversationMemory.set(convId, []);
   const arr = conversationMemory.get(convId);
@@ -68,21 +62,20 @@ function pushToMemory(convId, role, content) {
   while (arr.length > HISTORY_LIMIT * 2) arr.shift();
 }
 
-/**
- * messageCreate handler:
- * - Ignora DMs (no responde en privadas)
- * - Responde a menciones y a mensajes que empiecen con el prefijo 'n!'
- * - Mantiene historial por canal para dar contexto
- */
 client.on('messageCreate', async (message) => {
+
   if (message.author.bot) return;
   if (!message.guild) return;
+
+  if (recentlyReplied.has(message.id)) return;
+  recentlyReplied.add(message.id);
+  setTimeout(() => recentlyReplied.delete(message.id), 1000); // 1s
 
   const prefix = 'n!';
   const raw = (message.content || '').trim();
   if (!raw) return;
 
-  const isMention = message.mentions.has(client.user);
+  const isMention = message.mentions && message.mentions.users && message.mentions.users.has(client.user.id);
   const startsWithPrefix = raw.toLowerCase().startsWith(prefix);
 
   if (/^hola\b/i.test(raw)) {
@@ -105,12 +98,25 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
+  if (/^ga+a+\b/i.test(raw)) {
+    await message.reply("Gaaaaaaa");
+    return;
+  }
+
+  if (/^Ay no\b/i.test(raw)) {
+    await message.reply("Que te pasó");
+    return;
+  }
+
+
   if (!isMention && !startsWithPrefix) {
     return;
   }
 
   let userText = raw;
-  if (isMention) userText = userText.replace(/<@!?(\d+)>/g, '').trim();
+  if (isMention) {
+    userText = userText.replace(new RegExp(`<@!?(?:${client.user.id})>`, 'g'), '').trim();
+  }
   if (startsWithPrefix) userText = userText.slice(prefix.length).trim();
 
   if (!userText) {
@@ -143,6 +149,11 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+if (!process.env.DISCORD_TOKEN) {
+  console.error('[CONFIG] DISCORD_TOKEN no definida. Añade DISCORD_TOKEN en tu .env');
+  process.exit(1);
+}
 
-
+client.login(process.env.DISCORD_TOKEN).catch(err => {
+  console.error('Fallo al iniciar sesión del bot:', err);
+});
