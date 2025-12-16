@@ -1,3 +1,5 @@
+console.log("¡Hola desde la terminal!")
+
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
 const { getActividad, askOpenAI } = require('./gpt');
@@ -157,3 +159,4 @@ if (!process.env.DISCORD_TOKEN) {
 client.login(process.env.DISCORD_TOKEN).catch(err => {
   console.error('Fallo al iniciar sesión del bot:', err);
 });
+
